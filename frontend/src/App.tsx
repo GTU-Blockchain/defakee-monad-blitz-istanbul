@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, ShieldAlert, Flame, Gavel, HandCoins, Home, Search, Bell, User, MoreHorizontal, Image as ImageIcon } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Flame, Gavel, HandCoins, Search, User, MoreHorizontal, Image as ImageIcon, Zap, Globe, Sparkles } from 'lucide-react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { parseAbi, parseEther, formatEther } from 'viem';
@@ -34,11 +34,11 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [stakeAmount, setStakeAmount] = useState<Record<number, string>>({});
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
   const { writeContract, data: txHash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
-
   const publicClient = usePublicClient();
 
   const { data: postCounter, refetch: refetchCounter } = useReadContract({
@@ -52,76 +52,39 @@ function App() {
       if (!postCounter || !publicClient) return;
       const count = Number(postCounter);
       if (count === 0) return;
-
       const loadedPosts: Post[] = [];
       for (let i = count; i >= 1; i--) {
         try {
-          const postData = await publicClient.readContract({
-            address: CONTRACT_ADDRESS,
-            abi: parseAbi(DeFakeSocialABI),
-            functionName: 'getPost',
-            args: [BigInt(i)]
-          }) as any;
-
+          const postData = await publicClient.readContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'getPost', args: [BigInt(i)] }) as any;
           let challengeData = undefined;
           if (postData.isChallenged) {
-            const cData = await publicClient.readContract({
-              address: CONTRACT_ADDRESS,
-              abi: parseAbi(DeFakeSocialABI),
-              functionName: 'getChallenge',
-              args: [BigInt(i)]
-            }) as any;
-
-            challengeData = {
-              endTime: Number(cData.endTime),
-              votesFake: cData.votesFake,
-              votesAuthentic: cData.votesAuthentic,
-              resolved: cData.resolved
-            };
+            const cData = await publicClient.readContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'getChallenge', args: [BigInt(i)] }) as any;
+            challengeData = { endTime: Number(cData.endTime), votesFake: cData.votesFake, votesAuthentic: cData.votesAuthentic, resolved: cData.resolved };
           }
-
           loadedPosts.push({
-            id: Number(postData.id),
-            author: postData.author,
-            contentURI: postData.contentURI,
-            contentHash: postData.contentHash,
-            aiScore: Number(postData.aiScore),
-            isChallenged: postData.isChallenged,
+            id: Number(postData.id), author: postData.author, contentURI: postData.contentURI, contentHash: postData.contentHash,
+            aiScore: Number(postData.aiScore), isChallenged: postData.isChallenged,
             finalStatus: postData.finalStatus === 0 ? 'Pending' : postData.finalStatus === 1 ? 'Authentic' : 'Fake',
-            timestamp: Number(postData.timestamp),
-            challengeData
+            timestamp: Number(postData.timestamp), challengeData
           });
-        } catch (e) {
-          console.error("Error fetching post", i, e);
-        }
+        } catch (e) { console.error("Error fetching post", i, e); }
       }
       setPosts(loadedPosts);
     };
-
     fetchPosts();
   }, [postCounter, publicClient]);
 
   useEffect(() => {
-    if (isSuccess) {
-      refetchCounter();
-      setTextPost('');
-      setFile(null);
-      setHash('');
-      setAnalysisResult(null);
-    }
+    if (isSuccess) { refetchCounter(); setTextPost(''); setFile(null); setHash(''); setAnalysisResult(null); }
   }, [isSuccess, refetchCounter]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
-      setAnalysisResult(null);
-
+      const selectedFile = e.target.files[0]; setFile(selectedFile); setAnalysisResult(null);
       const buffer = await selectedFile.arrayBuffer();
       const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      setHash("0x" + hashHex);
+      setHash("0x" + hashArray.map(b => b.toString(16).padStart(2, '0')).join(''));
     }
   };
 
@@ -131,288 +94,331 @@ function App() {
       const msgUint8 = new TextEncoder().encode(e.target.value);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
       const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-      setHash("0x" + hashHex);
-    } else {
-      setHash('');
-    }
+      setHash("0x" + hashArray.map(b => b.toString(16).padStart(2, '0')).join(''));
+    } else { setHash(''); }
   };
 
   const analyzeContent = async () => {
-    if (!hash) return;
-    setIsAnalyzing(true);
+    if (!hash) return; setIsAnalyzing(true);
     try {
-      const response = await fetch('http://localhost:3001/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hash, filename: file?.name || "text_post", size: file?.size || textPost.length })
-      });
-      const data = await response.json();
-      setAnalysisResult(data);
-    } catch {
-      setAnalysisResult({ score: 45, message: 'Local fallback' });
-    } finally {
-      setIsAnalyzing(false);
-    }
+      const response = await fetch('http://localhost:3001/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hash, filename: file?.name || "text_post", size: file?.size || textPost.length }) });
+      setAnalysisResult(await response.json());
+    } catch { setAnalysisResult({ score: 45, message: 'Local fallback' }); }
+    finally { setIsAnalyzing(false); }
   };
 
   const handleCreatePost = () => {
     if (!analysisResult) return;
     writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'createPost', args: [textPost || 'file_uploaded', hash as `0x${string}`, analysisResult.score] });
   };
-
-  const handleChallenge = (id: number, amount: string) => {
-    if (!amount) return alert("Enter stake amount!");
-    writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'challengePost', args: [BigInt(id)], value: parseEther(amount) });
-  };
-  const handleVote = (id: number, voteFake: boolean, amount: string) => {
-    if (!amount) return alert("Enter stake amount!");
-    writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'vote', args: [BigInt(id), voteFake], value: parseEther(amount) });
-  };
+  const handleChallenge = (id: number, amount: string) => { if (!amount) return alert("Enter stake!"); writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'challengePost', args: [BigInt(id)], value: parseEther(amount) }); };
+  const handleVote = (id: number, voteFake: boolean, amount: string) => { if (!amount) return alert("Enter stake!"); writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'vote', args: [BigInt(id), voteFake], value: parseEther(amount) }); };
   const handleResolve = (id: number) => writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'resolveChallenge', args: [BigInt(id)] });
   const handleClaim = (id: number) => writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'claimReward', args: [BigInt(id)] });
 
   const formatTimeAgo = (timestamp: number) => {
     const seconds = Math.floor(Date.now() / 1000 - timestamp);
-    if (seconds < 60) return `${seconds}s`;
-    if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`;
-    return `${Math.floor(seconds / 86400)}d`;
+    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
   };
 
+  const getScoreColor = (score: number) => score > 70 ? 'text-emerald-400' : score > 40 ? 'text-amber-400' : 'text-rose-400';
+  const getScoreBg = (score: number) => score > 70 ? 'from-emerald-500/20 to-emerald-500/5' : score > 40 ? 'from-amber-500/20 to-amber-500/5' : 'from-rose-500/20 to-rose-500/5';
+  const getScoreBorder = (score: number) => score > 70 ? 'border-emerald-500/30' : score > 40 ? 'border-amber-500/30' : 'border-rose-500/30';
+
+  const filteredPosts = posts.filter(p => p.contentURI.toLowerCase().includes(searchQuery.toLowerCase()) || p.author.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
-    <div className="min-h-screen bg-black text-[#E7E9EA] flex justify-center font-sans tracking-tight">
-      <header className="hidden sm:flex flex-col w-[80px] xl:w-[275px] border-r border-[#2F3336] h-screen sticky top-0 py-4 px-2 xl:px-6">
-        <div className="text-2xl font-bold mb-8 pl-2 flex items-center gap-3 w-fit cursor-pointer hover:bg-[#181818] p-3 rounded-full transition-colors">
-          <span className="text-blue-500 text-3xl">⚡</span>
-          <span className="hidden xl:inline tracking-wide font-black">De-Fake</span>
+    <div className="min-h-screen flex font-sans">
+
+      {/* ───────── LEFT SIDEBAR ───────── */}
+      <aside className="hidden md:flex flex-col w-[72px] xl:w-[260px] border-r border-zinc-800/60 h-screen sticky top-0 py-6 px-3 xl:px-5 bg-zinc-950/80 backdrop-blur-sm">
+        {/* Brand */}
+        <div className="flex items-center gap-3 mb-10 px-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+            <Zap size={20} className="text-white" />
+          </div>
+          <div className="hidden xl:block">
+            <h1 className="text-lg font-black tracking-tight text-white">De-Fake</h1>
+            <p className="text-[11px] text-zinc-500 -mt-0.5 tracking-wide">TRUTH PROTOCOL</p>
+          </div>
         </div>
-        <nav className="flex flex-col gap-2 w-full">
-          <a href="#" className="flex items-center gap-4 text-xl p-3 w-fit hover:bg-[#181818] rounded-full transition-colors font-bold"><Home size={28} /> <span className="hidden xl:inline">Home</span></a>
-          <a href="#" className="flex items-center gap-4 text-xl p-3 w-fit hover:bg-[#181818] rounded-full transition-colors"><Search size={28} /> <span className="hidden xl:inline">Explore</span></a>
-          <a href="#" className="flex items-center gap-4 text-xl p-3 w-fit hover:bg-[#181818] rounded-full transition-colors"><Bell size={28} /> <span className="hidden xl:inline">Notifications</span></a>
-          <a href="#" className="flex items-center gap-4 text-xl p-3 w-fit hover:bg-[#181818] rounded-full transition-colors"><Gavel size={28} /> <span className="hidden xl:inline">Tribune (Staking)</span></a>
-          <a href="#" className="flex items-center gap-4 text-xl p-3 w-fit hover:bg-[#181818] rounded-full transition-colors"><User size={28} /> <span className="hidden xl:inline">Profile</span></a>
-          <button className="bg-[#1D9BF0] text-white rounded-full py-4 mt-6 font-bold text-lg hidden xl:block hover:bg-[#1A8CD8] transition-colors shadow-sm">Post</button>
-          <button className="bg-[#1D9BF0] text-white rounded-full p-3 mt-4 mx-auto block xl:hidden hover:bg-[#1A8CD8] transition-colors shadow-sm"><Flame size={24} /></button>
+
+        {/* Nav */}
+        <nav className="flex flex-col gap-1">
+          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-300 hover:bg-zinc-800/60 hover:text-white transition-all group">
+            <Globe size={22} className="group-hover:text-violet-400 transition-colors" />
+            <span className="hidden xl:inline text-[15px] font-medium">Explore</span>
+          </a>
+          <a href="#" className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-zinc-300 hover:bg-zinc-800/60 hover:text-white transition-all group">
+            <User size={22} className="group-hover:text-violet-400 transition-colors" />
+            <span className="hidden xl:inline text-[15px] font-medium">Profile</span>
+          </a>
         </nav>
-        <div className="mt-auto mb-4 w-full flex justify-center xl:justify-start">
+
+        {/* Post CTA */}
+        <button className="mt-6 hidden xl:block w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm hover:from-violet-500 hover:to-indigo-500 transition-all shadow-lg shadow-violet-600/20 active:scale-[0.98]">
+          New Post
+        </button>
+        <button className="mt-4 xl:hidden mx-auto w-11 h-11 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-violet-600/20">
+          <Flame size={20} />
+        </button>
+
+        {/* Connect */}
+        <div className="mt-auto pt-4 border-t border-zinc-800/40">
           <ConnectButton showBalance={false} />
         </div>
-      </header>
+      </aside>
 
-      <main className="w-full max-w-[600px] border-r border-[#2F3336] min-h-screen pb-24">
-        <div className="sticky top-0 bg-black/80 backdrop-blur-md z-10 border-b border-[#2F3336] p-4 flex justify-between items-center cursor-pointer">
-          <h1 className="text-xl font-bold">For you</h1>
-          <button onClick={() => refetchCounter()} className="text-sm text-[#71767B] hover:text-[#EFF3F4] transition-colors">Refresh</button>
+      {/* ───────── MAIN FEED ───────── */}
+      <main className="flex-1 max-w-2xl mx-auto min-h-screen">
+
+        {/* Top Bar */}
+        <div className="sticky top-0 z-20 bg-zinc-950/70 backdrop-blur-xl border-b border-zinc-800/40 px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Sparkles size={18} className="text-violet-400" />
+            <h2 className="text-lg font-bold text-white tracking-tight">Feed</h2>
+          </div>
+          <button onClick={() => refetchCounter()} className="text-xs text-zinc-500 hover:text-violet-400 transition-colors px-3 py-1.5 rounded-lg hover:bg-zinc-800/50">↻ Refresh</button>
         </div>
 
-        <div className="border-b border-[#2F3336] p-4 flex gap-4">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#1D9BF0] to-purple-600 flex-shrink-0" />
-          <div className="flex-1">
-            <textarea
-              placeholder="What is happening?!"
-              className="w-full bg-transparent text-xl placeholder-[#71767B] focus:outline-none resize-none pt-2 pb-6 min-h-[50px]"
-              value={textPost}
-              onChange={handleTextChange}
-            />
-            {file && <div className="mb-4 text-sm text-[#1D9BF0] flex items-center gap-2"><ImageIcon size={16} /> Attached: {file.name}</div>}
+        {/* ── COMPOSER ── */}
+        <div className="mx-4 mt-4 mb-6 rounded-2xl bg-zinc-900/60 border border-zinc-800/50 backdrop-blur-sm p-5">
+          <div className="flex gap-4">
+            <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex-shrink-0 flex items-center justify-center shadow-md shadow-violet-500/20">
+              <Zap size={18} className="text-white" />
+            </div>
+            <div className="flex-1">
+              <textarea
+                placeholder="Share something to verify..."
+                className="w-full bg-transparent text-[15px] text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none min-h-[60px] leading-relaxed"
+                value={textPost}
+                onChange={handleTextChange}
+              />
 
-            {hash && textPost.length > 5 && !analysisResult && (
-              <div className="mb-4 bg-[#16181C] rounded-2xl p-4 border border-[#2F3336] flex justify-between items-center">
-                <span className="text-sm text-[#71767B]">Content requires AI verification</span>
-                <button onClick={analyzeContent} disabled={isAnalyzing} className="text-sm bg-white text-black font-bold px-4 py-1.5 rounded-full hover:bg-[#D7DBDC]">
-                  {isAnalyzing ? "Scanning..." : "Run AI Scan"}
+              {file && (
+                <div className="mb-3 text-sm text-violet-400 flex items-center gap-2 bg-violet-500/10 px-3 py-1.5 rounded-lg w-fit">
+                  <ImageIcon size={14} /> {file.name}
+                </div>
+              )}
+
+              {hash && textPost.length > 5 && !analysisResult && (
+                <div className="mb-3 bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/40 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert size={16} className="text-amber-400" />
+                    <span className="text-sm text-zinc-400">AI verification required</span>
+                  </div>
+                  <button onClick={analyzeContent} disabled={isAnalyzing}
+                    className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500 transition-all disabled:opacity-50">
+                    {isAnalyzing ? "Scanning..." : "⚡ Verify"}
+                  </button>
+                </div>
+              )}
+
+              {analysisResult && (
+                <div className={`mb-3 flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-gradient-to-r w-fit ${getScoreBg(analysisResult.score)} ${getScoreBorder(analysisResult.score)}`}>
+                  <ShieldCheck size={16} className={getScoreColor(analysisResult.score)} />
+                  <span className="text-sm font-medium text-zinc-200">Authenticity: <span className={`font-bold ${getScoreColor(analysisResult.score)}`}>{analysisResult.score}%</span></span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-3 border-t border-zinc-800/40 mt-2">
+                <div className="flex gap-1">
+                  <label className="p-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer transition-colors text-zinc-500 hover:text-violet-400">
+                    <ImageIcon size={18} />
+                    <input type="file" className="hidden" onChange={handleFileChange} />
+                  </label>
+                </div>
+                <button
+                  onClick={handleCreatePost}
+                  disabled={!analysisResult || isPending || isConfirming || !isConnected}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-bold hover:from-violet-500 hover:to-indigo-500 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-violet-600/15 active:scale-[0.97]"
+                >
+                  {isPending ? '⏳ Confirming...' : isConfirming ? '⛏ Minting...' : '⚡ Post to De-Fake'}
                 </button>
               </div>
-            )}
-
-            {analysisResult && (
-              <div className="mb-4 flex items-center gap-3 bg-[#16181C] py-2 px-4 rounded-full border border-[#2F3336] w-fit">
-                <ShieldCheck className={analysisResult.score > 70 ? 'text-green-500' : analysisResult.score > 40 ? 'text-yellow-500' : 'text-red-500'} size={18} />
-                <span className="text-sm font-medium">AI Authenticity: <span className={analysisResult.score > 70 ? 'text-green-500' : analysisResult.score > 40 ? 'text-yellow-500' : 'text-red-500'}>{analysisResult.score}/100</span></span>
-              </div>
-            )}
-
-            <div className="flex justify-between items-center pt-2 border-t border-[#2F3336] mt-2">
-              <div className="flex gap-2 text-[#1D9BF0]">
-                <label className="p-2 rounded-full hover:bg-[#1D9BF0]/10 cursor-pointer transition-colors">
-                  <ImageIcon size={20} />
-                  <input type="file" className="hidden" onChange={handleFileChange} />
-                </label>
-                <button className="p-2 rounded-full hover:bg-[#1D9BF0]/10 cursor-pointer transition-colors"><ShieldAlert size={20} /></button>
-              </div>
-              <button
-                onClick={handleCreatePost}
-                disabled={!analysisResult || isPending || isConfirming || !isConnected}
-                className="bg-[#1D9BF0] text-white font-bold px-5 py-1.5 rounded-full hover:bg-[#1A8CD8] transition-colors disabled:opacity-50 text-sm"
-              >
-                {isPending ? 'Confirming...' : isConfirming ? 'Minting...' : 'Post'}
-              </button>
             </div>
           </div>
         </div>
 
-        <div>
-          {posts.length === 0 && postCounter && Number(postCounter) > 0 ? (
-            <div className="flex justify-center py-10"><div className="w-8 h-8 rounded-full border-2 border-[#1D9BF0] border-t-transparent animate-spin" /></div>
-          ) : posts.length === 0 ? (
-            <div className="text-center text-[#71767B] py-10 font-medium">Welcome to De-Fake. No posts yet.</div>
+        {/* ── FEED ── */}
+        <div className="px-4 pb-24 space-y-4">
+          {filteredPosts.length === 0 && postCounter && Number(postCounter) > 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="w-10 h-10 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+              <span className="text-zinc-500 text-sm">Loading posts...</span>
+            </div>
+          ) : filteredPosts.length === 0 ? (
+            <div className="text-center py-16">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-zinc-800/50 flex items-center justify-center">
+                <Zap size={28} className="text-zinc-600" />
+              </div>
+              <p className="text-zinc-500 font-medium">No posts yet</p>
+              <p className="text-zinc-600 text-sm mt-1">Be the first to share content on De-Fake</p>
+            </div>
           ) : null}
 
-          {posts.map(post => (
-            <article key={post.id} className="p-4 border-b border-[#2F3336] hover:bg-[#080808] transition-colors cursor-pointer">
-              <div className="flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center font-bold text-sm shadow-inner mt-1 text-white">
-                  {post.author.substring(2, 4).toUpperCase()}
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start mb-1">
-                    <div className="flex items-center gap-1.5 truncate">
-                      <span className="font-bold text-[#EFF3F4] hover:underline truncate">User {post.author.substring(0, 6)}...</span>
-                      <span className="text-[#71767B] text-sm hidden sm:inline">@{post.author.substring(38)}</span>
-                      <span className="text-[#71767B]">·</span>
-                      <span className="text-[#71767B] text-sm hover:underline">{formatTimeAgo(post.timestamp)}</span>
-                    </div>
-                    <button className="text-[#71767B] hover:text-[#1D9BF0] hover:bg-[#1D9BF0]/10 p-1.5 rounded-full transition-colors flex-shrink-0"><MoreHorizontal size={18} /></button>
+          {filteredPosts.map(post => (
+            <article key={post.id} className="rounded-2xl bg-zinc-900/50 border border-zinc-800/40 backdrop-blur-sm hover:border-zinc-700/50 transition-all duration-200 overflow-hidden group">
+              <div className="p-5">
+                <div className="flex gap-3.5">
+                  {/* Avatar */}
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center font-bold text-xs text-white shadow-md shadow-indigo-500/20 mt-0.5">
+                    {post.author.substring(2, 4).toUpperCase()}
                   </div>
 
-                  <p className="text-[#EFF3F4] text-[15px] leading-[20px] mb-3 whitespace-pre-wrap break-words">{post.contentURI}</p>
-
-                  <div className="mb-3 rounded-2xl border border-[#2F3336] overflow-hidden">
-                    <div className={`p-3 border-b border-[#2F3336] flex items-center gap-2 ${post.aiScore > 70 ? 'bg-[#00BA7C]/10' : post.aiScore > 40 ? 'bg-yellow-500/10' : 'bg-[#F91880]/10'}`}>
-                      <ShieldCheck size={18} className={post.aiScore > 70 ? 'text-[#00BA7C]' : post.aiScore > 40 ? 'text-yellow-500' : 'text-[#F91880]'} />
-                      <span className="text-sm font-medium text-[#EFF3F4]">De-Fake AI Analysis: <span className={post.aiScore > 70 ? 'text-[#00BA7C]' : post.aiScore > 40 ? 'text-yellow-500' : 'text-[#F91880]'}>{post.aiScore}% Authentic</span></span>
+                  <div className="flex-1 min-w-0">
+                    {/* Author */}
+                    <div className="flex justify-between items-center mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-zinc-100 text-[14px]">{post.author.substring(0, 6)}...{post.author.substring(38)}</span>
+                        <span className="text-zinc-600 text-xs">·</span>
+                        <span className="text-zinc-600 text-xs">{formatTimeAgo(post.timestamp)}</span>
+                      </div>
+                      <button className="text-zinc-600 hover:text-zinc-400 p-1 rounded-lg hover:bg-zinc-800/50 transition-colors opacity-0 group-hover:opacity-100">
+                        <MoreHorizontal size={16} />
+                      </button>
                     </div>
 
-                    <div className="p-3 bg-[#16181C]">
-                      {!post.isChallenged ? (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                          <span className="text-sm text-[#71767B]">Community Notes (Tribunal)</span>
-                          <div className="flex items-center gap-2 w-full sm:w-auto">
-                            <input
-                              type="number"
-                              placeholder="MON"
-                              className="bg-black border border-[#2F3336] rounded-md px-2 py-1.5 text-sm focus:outline-none focus:border-[#F4212E] w-20 text-[#EFF3F4]"
-                              onChange={(e) => setStakeAmount({ ...stakeAmount, [post.id]: e.target.value })}
-                            />
-                            <button onClick={(e) => { e.stopPropagation(); handleChallenge(post.id, stakeAmount[post.id]); }} className="text-sm text-white font-bold px-4 py-1.5 rounded-full bg-[#F4212E] hover:bg-[#dd1e2a] transition-colors">
-                              Challenge
-                            </button>
-                          </div>
-                        </div>
-                      ) : post.challengeData ? (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-1.5 text-yellow-500 text-sm font-bold"><Gavel size={16} /> Community Tribune</div>
-                            <div className="text-[#71767B] text-xs font-mono">{((post.challengeData.endTime * 1000 - Date.now()) / 3600000).toFixed(1)}h left</div>
-                          </div>
-
-                          <div className="flex rounded-full h-1.5 bg-[#2F3336] overflow-hidden">
-                            <div className="bg-[#F4212E]" style={{ width: `${(Number(post.challengeData.votesFake) / (Number(post.challengeData.votesFake) + Number(post.challengeData.votesAuthentic) || 1)) * 100}%` }} />
-                            <div className="bg-[#00BA7C]" style={{ width: `${(Number(post.challengeData.votesAuthentic) / (Number(post.challengeData.votesFake) + Number(post.challengeData.votesAuthentic) || 1)) * 100}%` }} />
-                          </div>
-                          <div className="flex justify-between text-[11px] text-[#71767B] font-medium uppercase tracking-wider">
-                            <span>Fake: {formatEther(post.challengeData.votesFake)} MON</span>
-                            <span>Auth: {formatEther(post.challengeData.votesAuthentic)} MON</span>
-                          </div>
-
-                          <div className="flex gap-2.5 mt-2">
-                            <input
-                              type="number"
-                              placeholder="Stake"
-                              className="bg-black border border-[#2F3336] rounded-md px-3 py-1.5 text-sm focus:outline-none focus:border-[#1D9BF0] w-[80px] text-[#EFF3F4]"
-                              onChange={(e) => setStakeAmount({ ...stakeAmount, [post.id]: e.target.value })}
-                            />
-                            <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, true, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-[#F4212E] hover:bg-[#dd1e2a] px-3 py-1.5 rounded-full transition-colors flex-1">Vote Fake</button>
-                            <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, false, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-[#00BA7C] hover:bg-[#00a870] px-3 py-1.5 rounded-full transition-colors flex-1">Vote Auth</button>
-                          </div>
-
-                          <div className="flex justify-end gap-4 pt-1 text-[#71767B] border-t border-[#2F3336] mt-3 pt-3">
-                            <button onClick={(e) => { e.stopPropagation(); handleResolve(post.id); }} className="text-[13px] hover:text-[#EFF3F4] transition-colors font-medium">Resolve</button>
-                            <button onClick={(e) => { e.stopPropagation(); handleClaim(post.id); }} className="text-[13px] text-[#00BA7C] hover:text-[#009c68] transition-colors font-bold flex items-center gap-1.5"><HandCoins size={14} /> Claim Rewards</button>
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between text-[#71767B] max-w-md mt-1">
-                    <button className="flex items-center gap-2 hover:text-[#1D9BF0] group"><div className="p-2 rounded-full group-hover:bg-[#1D9BF0]/10 transition-colors"><svg viewBox="0 0 24 24" aria-hidden="true" className="w-[18px] h-[18px] fill-current"><g><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01zm8.005-6c-3.317 0-6.005 2.69-6.005 6 0 3.37 2.77 6.08 6.138 6.01l.351-.01h1.761v2.3l5.087-2.81c1.951-1.08 3.163-3.13 3.163-5.36 0-3.39-2.744-6.13-6.129-6.13H9.756z"></path></g></svg></div></button>
-                    <button className="flex items-center gap-2 hover:text-[#00BA7C] group"><div className="p-2 rounded-full group-hover:bg-[#00BA7C]/10 transition-colors"><svg viewBox="0 0 24 24" aria-hidden="true" className="w-[18px] h-[18px] fill-current"><g><path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z"></path></g></svg></div></button>
-                    <button className="flex items-center gap-2 hover:text-[#F91880] group"><div className="p-2 rounded-full group-hover:bg-[#F91880]/10 transition-colors"><svg viewBox="0 0 24 24" aria-hidden="true" className="w-[18px] h-[18px] fill-current"><g><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91zm4.187 7.69c-1.351 2.48-4.001 5.12-8.379 7.67l-.503.3-.504-.3c-4.379-2.55-7.029-5.19-8.382-7.67-1.36-2.5-1.41-4.86-.514-6.67.887-1.79 2.647-2.91 4.601-3.01 1.651-.09 3.368.56 4.798 2.01 1.429-1.45 3.146-2.1 4.796-2.01 1.954.1 3.714 1.22 4.601 3.01.896 1.81.846 4.17-.514 6.67z"></path></g></svg></div></button>
-                    <button className="flex items-center gap-2 hover:text-[#1D9BF0] group"><div className="p-2 rounded-full group-hover:bg-[#1D9BF0]/10 transition-colors"><svg viewBox="0 0 24 24" aria-hidden="true" className="w-[18px] h-[18px] fill-current"><g><path d="M8.75 21V3h2v18h-2zM18 21V8.5h2V21h-2zM4 21l.004-10h2L6 21H4zm9.248 0v-7h2v7h-2z"></path></g></svg></div></button>
+                    {/* Content */}
+                    <p className="text-zinc-200 text-[15px] leading-relaxed mb-4 whitespace-pre-wrap break-words">{post.contentURI}</p>
                   </div>
                 </div>
+              </div>
+
+              {/* AI Score Bar */}
+              <div className={`px-5 py-3 border-t border-zinc-800/30 bg-gradient-to-r ${getScoreBg(post.aiScore)}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={16} className={getScoreColor(post.aiScore)} />
+                    <span className="text-sm text-zinc-300">AI Authenticity Score</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-24 h-1.5 rounded-full bg-zinc-700/50 overflow-hidden">
+                      <div className={`h-full rounded-full ${post.aiScore > 70 ? 'bg-emerald-400' : post.aiScore > 40 ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${post.aiScore}%` }} />
+                    </div>
+                    <span className={`text-sm font-bold ${getScoreColor(post.aiScore)}`}>{post.aiScore}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Challenge / Voting Section */}
+              <div className="px-5 py-3 border-t border-zinc-800/30 bg-zinc-900/30">
+                {!post.isChallenged ? (
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 text-zinc-500 text-sm">
+                      <Gavel size={14} />
+                      <span>Community Tribunal</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number" placeholder="MON"
+                        className="bg-zinc-800/60 border border-zinc-700/40 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-violet-500/50 w-20 text-zinc-200 placeholder-zinc-600"
+                        onChange={(e) => setStakeAmount({ ...stakeAmount, [post.id]: e.target.value })}
+                      />
+                      <button onClick={(e) => { e.stopPropagation(); handleChallenge(post.id, stakeAmount[post.id]); }}
+                        className="text-sm text-white font-semibold px-4 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-orange-600 hover:from-rose-500 hover:to-orange-500 transition-all shadow-sm">
+                        Challenge
+                      </button>
+                    </div>
+                  </div>
+                ) : post.challengeData ? (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2 text-amber-400 text-sm font-semibold">
+                        <Gavel size={14} />
+                        <span>Tribunal Active</span>
+                      </div>
+                      <span className="text-zinc-500 text-xs font-mono bg-zinc-800/50 px-2 py-0.5 rounded-md">
+                        {((post.challengeData.endTime * 1000 - Date.now()) / 3600000).toFixed(1)}h left
+                      </span>
+                    </div>
+
+                    {/* Vote Progress */}
+                    <div className="flex rounded-full h-2 bg-zinc-800 overflow-hidden">
+                      <div className="bg-gradient-to-r from-rose-500 to-rose-400 transition-all duration-500" style={{ width: `${(Number(post.challengeData.votesFake) / (Number(post.challengeData.votesFake) + Number(post.challengeData.votesAuthentic) || 1)) * 100}%` }} />
+                      <div className="bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-500" style={{ width: `${(Number(post.challengeData.votesAuthentic) / (Number(post.challengeData.votesFake) + Number(post.challengeData.votesAuthentic) || 1)) * 100}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[11px] text-zinc-500 font-medium uppercase tracking-widest">
+                      <span>Fake: {formatEther(post.challengeData.votesFake)} MON</span>
+                      <span>Auth: {formatEther(post.challengeData.votesAuthentic)} MON</span>
+                    </div>
+
+                    <div className="flex gap-2 mt-1">
+                      <input type="number" placeholder="Stake"
+                        className="bg-zinc-800/60 border border-zinc-700/40 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-violet-500/50 w-[80px] text-zinc-200 placeholder-zinc-600"
+                        onChange={(e) => setStakeAmount({ ...stakeAmount, [post.id]: e.target.value })}
+                      />
+                      <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, true, stakeAmount[post.id]); }}
+                        className="text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Fake</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, false, stakeAmount[post.id]); }}
+                        className="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Auth</button>
+                    </div>
+
+                    <div className="flex justify-end gap-4 pt-2 border-t border-zinc-800/30 mt-2">
+                      <button onClick={(e) => { e.stopPropagation(); handleResolve(post.id); }} className="text-xs text-zinc-500 hover:text-zinc-300 font-medium transition-colors">Resolve</button>
+                      <button onClick={(e) => { e.stopPropagation(); handleClaim(post.id); }}
+                        className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition-colors">
+                        <HandCoins size={12} /> Claim
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </article>
           ))}
         </div>
       </main>
 
-      <aside className="hidden lg:block w-[350px] pl-8 py-4">
-        <div className="sticky top-4 space-y-4">
-          <div className="bg-[#202327] rounded-full flex items-center px-4 py-2 border border-transparent focus-within:bg-black focus-within:border-[#1D9BF0] group">
-            <Search size={18} className="text-[#71767B] group-focus-within:text-[#1D9BF0]" />
-            <input type="text" placeholder="Search" className="bg-transparent border-none focus:outline-none text-[#EFF3F4] ml-3 w-full placeholder-[#71767B]" />
+      {/* ───────── RIGHT PANEL ───────── */}
+      <aside className="hidden lg:flex flex-col w-[300px] border-l border-zinc-800/60 h-screen sticky top-0 py-6 px-5 bg-zinc-950/80 backdrop-blur-sm">
+        {/* Search */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2.5 bg-zinc-800/40 border border-zinc-700/30 rounded-xl px-3.5 py-2.5 focus-within:border-violet-500/50 transition-colors group">
+            <Search size={16} className="text-zinc-500 group-focus-within:text-violet-400 transition-colors" />
+            <input
+              type="text" placeholder="Search posts..."
+              className="bg-transparent focus:outline-none text-sm text-zinc-200 w-full placeholder-zinc-600"
+              value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
+        </div>
 
-          <div className="bg-[#16181C] rounded-2xl p-4 border border-[#2F3336]">
-            <h2 className="text-xl font-bold mb-4 text-[#EFF3F4]">What's happening</h2>
-            <div className="mb-4 cursor-pointer hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors">
-              <p className="text-[#71767B] text-[13px] flex justify-between"><span>Monad Ecosystem · Trending</span><span><MoreHorizontal size={16} /></span></p>
-              <p className="font-bold text-[#EFF3F4] mt-0.5">#DeFake Monad</p>
-              <p className="text-[#71767B] text-[13px] mt-0.5">15.2K Posts</p>
+        {/* Stats */}
+        <div className="rounded-2xl bg-zinc-900/50 border border-zinc-800/40 p-4 mb-5">
+          <h3 className="text-sm font-bold text-zinc-300 mb-3 flex items-center gap-2">
+            <Sparkles size={14} className="text-violet-400" /> Network Stats
+          </h3>
+          <div className="space-y-2.5">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-zinc-500">Total Posts</span>
+              <span className="text-sm font-bold text-zinc-200">{postCounter ? Number(postCounter) : 0}</span>
             </div>
-            <div className="mb-4 cursor-pointer hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors">
-              <p className="text-[#71767B] text-[13px] flex justify-between"><span>Technology · Trending</span><span><MoreHorizontal size={16} /></span></p>
-              <p className="font-bold text-[#EFF3F4] mt-0.5">AI Deepfakes</p>
-              <p className="text-[#71767B] text-[13px] mt-0.5">Community notes resolving issues</p>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-zinc-500">Challenges</span>
+              <span className="text-sm font-bold text-amber-400">{posts.filter(p => p.isChallenged).length}</span>
             </div>
-            <div className="mb-2 cursor-pointer hover:bg-white/5 p-2 -mx-2 rounded-lg transition-colors">
-              <p className="text-[#71767B] text-[13px] flex justify-between"><span>Crypto · Trending</span><span><MoreHorizontal size={16} /></span></p>
-              <p className="font-bold text-[#EFF3F4] mt-0.5">$MON</p>
-              <p className="text-[#71767B] text-[13px] mt-0.5">Testnet Faucet</p>
-            </div>
-            <button className="text-[#1D9BF0] text-[15px] hover:bg-white/5 p-2 -mx-2 rounded-lg mt-2 w-full text-left transition-colors">Show more</button>
-          </div>
-
-          <div className="bg-[#16181C] rounded-2xl p-4 border border-[#2F3336]">
-            <h2 className="text-xl font-bold mb-4 text-[#EFF3F4]">Who to follow</h2>
-
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-bold">M</div>
-                <div>
-                  <p className="font-bold text-[#EFF3F4] text-[15px] hover:underline cursor-pointer">Monad</p>
-                  <p className="text-[#71767B] text-[15px]">@monad_xyz</p>
-                </div>
-              </div>
-              <button className="bg-[#EFF3F4] text-black font-bold px-4 py-1.5 rounded-full hover:bg-[#D7DBDC] transition-colors text-sm">Follow</button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold">V</div>
-                <div>
-                  <p className="font-bold text-[#EFF3F4] text-[15px] hover:underline cursor-pointer flex items-center gap-1">Viem <svg className="w-4 h-4 text-[#1D9BF0] fill-current" viewBox="0 0 24 24"><path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.918-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.337 2.25c-.416-.165-.866-.25-1.336-.25-2.21 0-3.918 1.79-3.918 4 0 .495.084.965.238 1.4-1.273.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.918 4 .58 0 1.132-.153 1.626-.43 1.03 1.258 2.553 2.054 4.144 2.054 1.59 0 3.112-.796 4.143-2.053.495.277 1.047.43 1.626.43 2.21 0 3.918-1.79 3.918-4 0-.174-.012-.344-.033-.513 1.158-.69 1.943-1.99 1.943-3.487zm-11.45 6.446l-4.74-5.14 1.47-1.36 3.25 3.53 6.64-6.86 1.48 1.4-8.1 8.43z"></path></svg></p>
-                  <p className="text-[#71767B] text-[15px]">@wagmi_sh</p>
-                </div>
-              </div>
-              <button className="bg-[#EFF3F4] text-black font-bold px-4 py-1.5 rounded-full hover:bg-[#D7DBDC] transition-colors text-sm">Follow</button>
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-zinc-500">Avg AI Score</span>
+              <span className="text-sm font-bold text-emerald-400">{posts.length > 0 ? Math.round(posts.reduce((a, b) => a + b.aiScore, 0) / posts.length) : 0}%</span>
             </div>
           </div>
+        </div>
 
-          <nav className="flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-[#71767B] px-4 pt-2">
-            <a href="#" className="hover:underline">Terms of Service</a>
-            <a href="#" className="hover:underline">Privacy Policy</a>
-            <a href="#" className="hover:underline">Cookie Policy</a>
-            <a href="#" className="hover:underline">Accessibility</a>
-            <a href="#" className="hover:underline">Ads info</a>
-            <span className="flex items-center gap-1">More <MoreHorizontal size={12} /></span>
-            <span>© 2026 De-Fake Social Corp.</span>
-          </nav>
+        {/* About */}
+        <div className="rounded-2xl bg-zinc-900/50 border border-zinc-800/40 p-4">
+          <h3 className="text-sm font-bold text-zinc-300 mb-2">About De-Fake</h3>
+          <p className="text-xs text-zinc-500 leading-relaxed">
+            Community-powered truth verification on Monad. Post content, get AI analysis, and let the community stake on authenticity.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-auto pt-4 text-[11px] text-zinc-600">
+          <p>Built on Monad Testnet</p>
+          <p className="mt-1">© 2026 De-Fake Protocol</p>
         </div>
       </aside>
     </div>
