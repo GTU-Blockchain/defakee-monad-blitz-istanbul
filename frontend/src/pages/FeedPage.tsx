@@ -5,7 +5,7 @@ import { parseAbi, parseEther, formatEther } from 'viem';
 import { DeFakeSocialABI } from '../abi';
 import { analyzeWithGemini } from '../gemini';
 
-const CONTRACT_ADDRESS = '0x9B0876D6ae703fe70EA38D9254da6db769b9f6f5';
+const CONTRACT_ADDRESS = '0x1eb6e7A1f8682bd33AaFD242384Be0734c98Cf53';
 
 type PostStatus = 'Pending' | 'Authentic' | 'Fake';
 type Challenge = { endTime: number; votesFake: bigint; votesAuthentic: bigint; resolved: boolean; };

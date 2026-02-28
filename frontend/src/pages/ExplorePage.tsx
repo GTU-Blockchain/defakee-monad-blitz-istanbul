@@ -4,7 +4,7 @@ import { useReadContract, usePublicClient } from 'wagmi';
 import { parseAbi } from 'viem';
 import { DeFakeSocialABI } from '../abi';
 
-const CONTRACT_ADDRESS = '0x9B0876D6ae703fe70EA38D9254da6db769b9f6f5';
+const CONTRACT_ADDRESS = '0x1eb6e7A1f8682bd33AaFD242384Be0734c98Cf53';
 
 type Post = { id: number; author: string; contentURI: string; aiScore: number; timestamp: number; isChallenged: boolean; };
 
