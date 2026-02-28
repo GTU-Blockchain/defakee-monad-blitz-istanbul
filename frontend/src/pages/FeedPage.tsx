@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, ShieldAlert, Gavel, HandCoins, Sparkles, Zap, MoreHorizontal, Image as ImageIcon, Search } from 'lucide-react';
+import { ShieldCheck, Gavel, HandCoins, Sparkles, Zap, MoreHorizontal, Image as ImageIcon, Search } from 'lucide-react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract, usePublicClient } from 'wagmi';
 import { parseAbi, parseEther, formatEther } from 'viem';
 import { DeFakeSocialABI } from '../abi';
+import { analyzeWithGemini } from '../gemini';
 
 const CONTRACT_ADDRESS = '0x9B0876D6ae703fe70EA38D9254da6db769b9f6f5';
 
@@ -78,13 +79,28 @@ export default function FeedPage() {
             setHash("0x" + Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(e.target.value)))).map(b => b.toString(16).padStart(2, '0')).join(''));
         } else { setHash(''); }
     };
-    const analyzeContent = async () => {
-        if (!hash) return; setIsAnalyzing(true);
-        try { const r = await fetch('http://localhost:3001/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hash, content: textPost, filename: file?.name || 'text_post', size: file?.size || textPost.length }) }); setAnalysisResult(await r.json()); }
-        catch { setAnalysisResult({ score: 45, message: 'AI service unreachable. Fallback score applied.' }); }
-        finally { setIsAnalyzing(false); }
+    const analyzeContent = async (): Promise<any> => {
+        if (!hash) return null;
+        setIsAnalyzing(true);
+        try {
+            const result = await analyzeWithGemini(textPost || file?.name || 'content');
+            setAnalysisResult(result);
+            return result;
+        } catch {
+            const fallback = { score: 45, message: 'AI service unreachable. Fallback score applied.', model: 'fallback' };
+            setAnalysisResult(fallback);
+            return fallback;
+        } finally { setIsAnalyzing(false); }
     };
-    const handleCreatePost = () => { if (!analysisResult) return; writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'createPost', args: [textPost || 'file_uploaded', hash as `0x${string}`, analysisResult.score] }); };
+    const handleCreatePost = async () => {
+        if (!hash || !isConnected) return;
+        let result = analysisResult;
+        if (!result) {
+            result = await analyzeContent();
+        }
+        if (!result) return;
+        writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'createPost', args: [textPost || 'file_uploaded', hash as `0x${string}`, result.score] });
+    };
     const handleChallenge = (id: number, amt: string) => { if (!amt) return alert("Enter stake!"); writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'challengePost', args: [BigInt(id)], value: parseEther(amt) }); };
     const handleVote = (id: number, fake: boolean, amt: string) => { if (!amt) return alert("Enter stake!"); writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'vote', args: [BigInt(id), fake], value: parseEther(amt) }); };
     const handleResolve = (id: number) => writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'resolveChallenge', args: [BigInt(id)] });
@@ -118,7 +134,6 @@ export default function FeedPage() {
                         <Zap size={18} className="text-white" />
                     </div>
                     <div className="flex-1">
-                        {/* When analysis is done, show collapsed preview; otherwise show textarea */}
                         {analysisResult ? (
                             <div className="mb-3">
                                 <p className="text-[15px] text-zinc-200 leading-relaxed line-clamp-3">{textPost}</p>
@@ -128,12 +143,6 @@ export default function FeedPage() {
                             <textarea id="composer-textarea" placeholder="Share something to verify..." className="w-full bg-transparent text-[15px] text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none min-h-[60px] max-h-[120px] overflow-y-auto leading-relaxed" value={textPost} onChange={handleTextChange} />
                         )}
                         {file && <div className="mb-3 text-sm text-violet-400 flex items-center gap-2 bg-violet-500/10 px-3 py-1.5 rounded-lg w-fit"><ImageIcon size={14} /> {file.name}</div>}
-                        {hash && textPost.length > 5 && !analysisResult && (
-                            <div className="mb-3 bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/40 flex justify-between items-center">
-                                <div className="flex items-center gap-2"><ShieldAlert size={16} className="text-amber-400" /><span className="text-sm text-zinc-400">AI verification required</span></div>
-                                <button onClick={analyzeContent} disabled={isAnalyzing} className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500 transition-all disabled:opacity-50">{isAnalyzing ? "Scanning..." : "⚡ Verify"}</button>
-                            </div>
-                        )}
                         {analysisResult && (
                             <div className={`mb-3 rounded-xl border bg-gradient-to-r ${getScoreBg(analysisResult.score)} ${getScoreColor(analysisResult.score) === 'text-emerald-400' ? 'border-emerald-500/30' : getScoreColor(analysisResult.score) === 'text-amber-400' ? 'border-amber-500/30' : 'border-rose-500/30'} p-3`}>
                                 <div className="flex items-center gap-2.5 mb-1.5">
@@ -146,8 +155,8 @@ export default function FeedPage() {
                         )}
                         <div className="flex justify-between items-center pt-3 border-t border-zinc-800/40 mt-2">
                             <label className="p-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer transition-colors text-zinc-500 hover:text-violet-400"><ImageIcon size={18} /><input type="file" className="hidden" onChange={handleFileChange} /></label>
-                            <button onClick={handleCreatePost} disabled={!analysisResult || isPending || isConfirming || !isConnected} className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-bold hover:from-violet-500 hover:to-indigo-500 transition-all disabled:opacity-40 shadow-md shadow-violet-600/15 active:scale-[0.97]">
-                                {isPending ? '⏳ Confirming...' : isConfirming ? '⛏ Minting...' : '⚡ Post to De-Fake'}
+                            <button onClick={handleCreatePost} disabled={(!hash || textPost.length <= 5) || isAnalyzing || isPending || isConfirming || !isConnected} className="btn-press px-5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white text-sm font-bold hover:from-violet-500 hover:to-indigo-500 transition-all disabled:opacity-40 shadow-md shadow-violet-600/15 hover:shadow-violet-500/30">
+                                {isAnalyzing ? '🔍 Analyzing...' : isPending ? '⏳ Confirming...' : isConfirming ? '⛏ Minting...' : '⚡ Post to De-Fake'}
                             </button>
                         </div>
                     </div>
@@ -163,7 +172,7 @@ export default function FeedPage() {
                 ) : null}
 
                 {filtered.map(post => (
-                    <article key={post.id} className="rounded-2xl bg-zinc-900/50 border border-zinc-800/40 backdrop-blur-sm hover:border-zinc-700/50 transition-all overflow-hidden group">
+                    <article key={post.id} className="post-card rounded-2xl bg-zinc-900/50 border border-zinc-800/40 backdrop-blur-sm hover:border-violet-500/20 transition-all duration-300 overflow-hidden group">
                         <div className="p-5">
                             <div className="flex gap-3.5">
                                 <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex-shrink-0 flex items-center justify-center font-bold text-xs text-white shadow-md shadow-indigo-500/20 mt-0.5">{post.author.substring(2, 4).toUpperCase()}</div>
@@ -186,7 +195,7 @@ export default function FeedPage() {
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2"><ShieldCheck size={16} className={getScoreColor(post.aiScore)} /><span className="text-sm text-zinc-300">AI Score</span></div>
                                 <div className="flex items-center gap-2">
-                                    <div className="w-24 h-1.5 rounded-full bg-zinc-700/50 overflow-hidden"><div className={`h-full rounded-full ${post.aiScore > 70 ? 'bg-emerald-400' : post.aiScore > 40 ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${post.aiScore}%` }} /></div>
+                                    <div className="w-24 h-1.5 rounded-full bg-zinc-700/50 overflow-hidden"><div className={`score-bar h-full rounded-full ${post.aiScore > 70 ? 'bg-emerald-400' : post.aiScore > 40 ? 'bg-amber-400' : 'bg-rose-400'}`} style={{ width: `${post.aiScore}%` }} /></div>
                                     <span className={`text-sm font-bold ${getScoreColor(post.aiScore)}`}>{post.aiScore}%</span>
                                 </div>
                             </div>
