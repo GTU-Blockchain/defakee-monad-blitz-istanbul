@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ShieldCheck, Wallet, Clock, Award, Zap, Copy, CheckCircle } from 'lucide-react';
 import { useAccount, useReadContract, usePublicClient } from 'wagmi';
-import { parseAbi, formatEther } from 'viem';
+import { parseAbi } from 'viem';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { DeFakeSocialABI } from '../abi';
 

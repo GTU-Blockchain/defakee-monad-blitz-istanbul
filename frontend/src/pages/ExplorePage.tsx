@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { ShieldCheck, Search, TrendingUp, Clock, Filter, Zap } from 'lucide-react';
 import { useReadContract, usePublicClient } from 'wagmi';
 import { parseAbi } from 'viem';
