@@ -71,8 +71,8 @@ export default function FeedPage() {
     };
     const analyzeContent = async () => {
         if (!hash) return; setIsAnalyzing(true);
-        try { const r = await fetch('http://localhost:3001/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hash, filename: file?.name || "text_post", size: file?.size || textPost.length }) }); setAnalysisResult(await r.json()); }
-        catch { setAnalysisResult({ score: 45, message: 'Fallback' }); }
+        try { const r = await fetch('http://localhost:3001/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ hash, content: textPost, filename: file?.name || 'text_post', size: file?.size || textPost.length }) }); setAnalysisResult(await r.json()); }
+        catch { setAnalysisResult({ score: 45, message: 'AI service unreachable. Fallback score applied.' }); }
         finally { setIsAnalyzing(false); }
     };
     const handleCreatePost = () => { if (!analysisResult) return; writeContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'createPost', args: [textPost || 'file_uploaded', hash as `0x${string}`, analysisResult.score] }); };
@@ -118,9 +118,13 @@ export default function FeedPage() {
                             </div>
                         )}
                         {analysisResult && (
-                            <div className={`mb-3 flex items-center gap-2.5 px-3 py-2 rounded-xl border bg-gradient-to-r w-fit ${getScoreBg(analysisResult.score)} ${getScoreColor(analysisResult.score) === 'text-emerald-400' ? 'border-emerald-500/30' : getScoreColor(analysisResult.score) === 'text-amber-400' ? 'border-amber-500/30' : 'border-rose-500/30'}`}>
-                                <ShieldCheck size={16} className={getScoreColor(analysisResult.score)} />
-                                <span className="text-sm font-medium text-zinc-200">Authenticity: <span className={`font-bold ${getScoreColor(analysisResult.score)}`}>{analysisResult.score}%</span></span>
+                            <div className={`mb-3 rounded-xl border bg-gradient-to-r ${getScoreBg(analysisResult.score)} ${getScoreColor(analysisResult.score) === 'text-emerald-400' ? 'border-emerald-500/30' : getScoreColor(analysisResult.score) === 'text-amber-400' ? 'border-amber-500/30' : 'border-rose-500/30'} p-3`}>
+                                <div className="flex items-center gap-2.5 mb-1.5">
+                                    <ShieldCheck size={16} className={getScoreColor(analysisResult.score)} />
+                                    <span className="text-sm font-medium text-zinc-200">Authenticity: <span className={`font-bold ${getScoreColor(analysisResult.score)}`}>{analysisResult.score}%</span></span>
+                                    {analysisResult.model && <span className="text-[10px] text-zinc-500 bg-zinc-800/50 px-1.5 py-0.5 rounded-md ml-auto">{analysisResult.model}</span>}
+                                </div>
+                                {analysisResult.message && <p className="text-xs text-zinc-400 leading-relaxed">{analysisResult.message}</p>}
                             </div>
                         )}
                         <div className="flex justify-between items-center pt-3 border-t border-zinc-800/40 mt-2">
@@ -200,10 +204,12 @@ export default function FeedPage() {
                                         <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, true, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-rose-500 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Fake</button>
                                         <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, false, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Auth</button>
                                     </div>
-                                    <div className="flex justify-end gap-4 pt-2 border-t border-zinc-800/30 mt-2">
-                                        <button onClick={(e) => { e.stopPropagation(); handleResolve(post.id); }} className="text-xs text-zinc-500 hover:text-zinc-300 font-medium transition-colors">Resolve</button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleClaim(post.id); }} className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition-colors"><HandCoins size={12} /> Claim</button>
-                                    </div>
+                                    {post.challengeData.endTime * 1000 < Date.now() && (
+                                        <div className="flex justify-end gap-4 pt-2 border-t border-zinc-800/30 mt-2">
+                                            <button onClick={(e) => { e.stopPropagation(); handleResolve(post.id); }} className="text-xs text-zinc-500 hover:text-zinc-300 font-medium transition-colors">Resolve</button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleClaim(post.id); }} className="text-xs text-emerald-400 hover:text-emerald-300 font-bold flex items-center gap-1 transition-colors"><HandCoins size={12} /> Claim</button>
+                                        </div>
+                                    )}
                                 </div>
                             ) : null}
                         </div>
