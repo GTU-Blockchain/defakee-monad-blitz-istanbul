@@ -1,10 +1,12 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Globe, User, Flame, Zap, Sparkles } from 'lucide-react';
+import { Globe, User, Flame, Zap, Sparkles, Sun, Moon } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useTheme } from './ThemeContext';
 
 export default function Layout() {
     const navigate = useNavigate();
     const location = useLocation();
+    const { theme, toggle } = useTheme();
     const navLinkClass = ({ isActive }: { isActive: boolean }) =>
         `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all group ${isActive ? 'bg-violet-600/15 text-white' : 'text-zinc-400 hover:bg-zinc-800/60 hover:text-white'}`;
 
@@ -44,6 +46,12 @@ export default function Layout() {
                         <span className="hidden xl:inline text-[15px] font-medium">Profile</span>
                     </NavLink>
                 </nav>
+
+                {/* Theme Toggle */}
+                <button onClick={toggle} className="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-zinc-400 hover:bg-zinc-800/60 hover:text-white cursor-pointer" title={theme === 'dark' ? 'Switch to Light' : 'Switch to Dark'}>
+                    {theme === 'dark' ? <Sun size={22} /> : <Moon size={22} />}
+                    <span className="hidden xl:inline text-[15px] font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                </button>
 
                 {/* Post CTA */}
                 <button onClick={handleNewPost} className="mt-6 hidden xl:block w-full py-3 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm text-center hover:from-violet-500 hover:to-indigo-500 transition-all shadow-lg shadow-violet-600/20 active:scale-[0.98] cursor-pointer">

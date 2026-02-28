@@ -8,7 +8,7 @@ const CONTRACT_ADDRESS = '0x9B0876D6ae703fe70EA38D9254da6db769b9f6f5';
 
 type PostStatus = 'Pending' | 'Authentic' | 'Fake';
 type Challenge = { endTime: number; votesFake: bigint; votesAuthentic: bigint; resolved: boolean; };
-type Post = { id: number; author: string; contentURI: string; contentHash: string; aiScore: number; isChallenged: boolean; finalStatus: PostStatus; timestamp: number; challengeData?: Challenge; };
+type Post = { id: number; author: string; contentURI: string; contentHash: string; aiScore: number; isChallenged: boolean; finalStatus: PostStatus; timestamp: number; challengeData?: Challenge; hasVoted?: boolean; votedFake?: boolean; };
 
 const getScoreColor = (s: number) => s > 70 ? 'text-emerald-400' : s > 40 ? 'text-amber-400' : 'text-rose-400';
 const getScoreBg = (s: number) => s > 70 ? 'from-emerald-500/20 to-emerald-500/5' : s > 40 ? 'from-amber-500/20 to-amber-500/5' : 'from-rose-500/20 to-rose-500/5';
@@ -23,7 +23,7 @@ export default function FeedPage() {
     const [stakeAmount, setStakeAmount] = useState<Record<number, string>>({});
     const [searchQuery, setSearchQuery] = useState('');
 
-    const { isConnected } = useAccount();
+    const { address, isConnected } = useAccount();
     const { writeContract, data: txHash, isPending } = useWriteContract();
     const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash: txHash });
     const publicClient = usePublicClient();
@@ -42,17 +42,26 @@ export default function FeedPage() {
                 try {
                     const pd = await publicClient.readContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'getPost', args: [BigInt(i)] }) as any;
                     let cd = undefined;
+                    let hasVoted = false;
+                    let votedFake = false;
                     if (pd.isChallenged) {
                         const c = await publicClient.readContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'getChallenge', args: [BigInt(i)] }) as any;
                         cd = { endTime: Number(c.endTime), votesFake: c.votesFake, votesAuthentic: c.votesAuthentic, resolved: c.resolved };
+                        if (address) {
+                            const stake = await publicClient.readContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'userStakeAmount', args: [BigInt(i), address] }) as bigint;
+                            if (stake > 0n) {
+                                hasVoted = true;
+                                votedFake = await publicClient.readContract({ address: CONTRACT_ADDRESS, abi: parseAbi(DeFakeSocialABI), functionName: 'userVoteDirection', args: [BigInt(i), address] }) as boolean;
+                            }
+                        }
                     }
-                    loaded.push({ id: Number(pd.id), author: pd.author, contentURI: pd.contentURI, contentHash: pd.contentHash, aiScore: Number(pd.aiScore), isChallenged: pd.isChallenged, finalStatus: pd.finalStatus === 0 ? 'Pending' : pd.finalStatus === 1 ? 'Authentic' : 'Fake', timestamp: Number(pd.timestamp), challengeData: cd });
+                    loaded.push({ id: Number(pd.id), author: pd.author, contentURI: pd.contentURI, contentHash: pd.contentHash, aiScore: Number(pd.aiScore), isChallenged: pd.isChallenged, finalStatus: pd.finalStatus === 0 ? 'Pending' : pd.finalStatus === 1 ? 'Authentic' : 'Fake', timestamp: Number(pd.timestamp), challengeData: cd, hasVoted, votedFake });
                 } catch (e) { console.error("Error fetching post", i, e); }
             }
             setPosts(loaded);
         };
         fetchPosts();
-    }, [postCounter, publicClient]);
+    }, [postCounter, publicClient, address]);
 
     useEffect(() => { if (isSuccess) { refetchCounter(); setTextPost(''); setFile(null); setHash(''); setAnalysisResult(null); } }, [isSuccess, refetchCounter]);
 
@@ -109,7 +118,15 @@ export default function FeedPage() {
                         <Zap size={18} className="text-white" />
                     </div>
                     <div className="flex-1">
-                        <textarea id="composer-textarea" placeholder="Share something to verify..." className="w-full bg-transparent text-[15px] text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none min-h-[60px] leading-relaxed" value={textPost} onChange={handleTextChange} />
+                        {/* When analysis is done, show collapsed preview; otherwise show textarea */}
+                        {analysisResult ? (
+                            <div className="mb-3">
+                                <p className="text-[15px] text-zinc-200 leading-relaxed line-clamp-3">{textPost}</p>
+                                <button onClick={() => setAnalysisResult(null)} className="text-xs text-violet-400 hover:text-violet-300 mt-1.5 transition-colors">✏ Edit post</button>
+                            </div>
+                        ) : (
+                            <textarea id="composer-textarea" placeholder="Share something to verify..." className="w-full bg-transparent text-[15px] text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none min-h-[60px] max-h-[120px] overflow-y-auto leading-relaxed" value={textPost} onChange={handleTextChange} />
+                        )}
                         {file && <div className="mb-3 text-sm text-violet-400 flex items-center gap-2 bg-violet-500/10 px-3 py-1.5 rounded-lg w-fit"><ImageIcon size={14} /> {file.name}</div>}
                         {hash && textPost.length > 5 && !analysisResult && (
                             <div className="mb-3 bg-zinc-800/50 rounded-xl p-3 border border-zinc-700/40 flex justify-between items-center">
@@ -199,11 +216,18 @@ export default function FeedPage() {
                                         <span>Fake: {formatEther(post.challengeData.votesFake)} MON</span>
                                         <span>Auth: {formatEther(post.challengeData.votesAuthentic)} MON</span>
                                     </div>
-                                    <div className="flex gap-2 mt-1">
-                                        <input type="number" placeholder="Stake" className="bg-zinc-800/60 border border-zinc-700/40 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-violet-500/50 w-[80px] text-zinc-200 placeholder-zinc-600" onChange={(e) => setStakeAmount({ ...stakeAmount, [post.id]: e.target.value })} />
-                                        <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, true, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-rose-500 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Fake</button>
-                                        <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, false, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Auth</button>
-                                    </div>
+                                    {post.hasVoted ? (
+                                        <div className="flex items-center gap-2 mt-1 px-3 py-2 rounded-lg bg-zinc-800/40 border border-zinc-700/30">
+                                            <ShieldCheck size={14} className={post.votedFake ? 'text-rose-400' : 'text-emerald-400'} />
+                                            <span className="text-xs text-zinc-400">You voted <span className={`font-bold ${post.votedFake ? 'text-rose-400' : 'text-emerald-400'}`}>{post.votedFake ? 'Fake' : 'Authentic'}</span></span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex gap-2 mt-1">
+                                            <input type="number" placeholder="Stake" className="bg-zinc-800/60 border border-zinc-700/40 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-violet-500/50 w-[80px] text-zinc-200 placeholder-zinc-600" onChange={(e) => setStakeAmount({ ...stakeAmount, [post.id]: e.target.value })} />
+                                            <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, true, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-gradient-to-r from-rose-600 to-rose-500 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Fake</button>
+                                            <button onClick={(e) => { e.stopPropagation(); handleVote(post.id, false, stakeAmount[post.id]); }} className="text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-emerald-500 px-3 py-1.5 rounded-lg transition-all flex-1">Vote Auth</button>
+                                        </div>
+                                    )}
                                     {post.challengeData.endTime * 1000 < Date.now() && (
                                         <div className="flex justify-end gap-4 pt-2 border-t border-zinc-800/30 mt-2">
                                             <button onClick={(e) => { e.stopPropagation(); handleResolve(post.id); }} className="text-xs text-zinc-500 hover:text-zinc-300 font-medium transition-colors">Resolve</button>

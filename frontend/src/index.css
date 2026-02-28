@@ -4,18 +4,195 @@
   --font-sans: "Inter", system-ui, sans-serif;
 }
 
+/* ─── DARK THEME (default) ─── */
 @layer base {
   body {
-    @apply bg-zinc-950 text-zinc-50 font-sans antialiased min-h-screen;
-    background-image: 
-      radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
-      radial-gradient(at 50% 0%, hsla(225,39%,30%,0.1) 0, transparent 50%), 
-      radial-gradient(at 100% 0%, hsla(339,49%,30%,0.1) 0, transparent 50%);
+    @apply font-sans antialiased min-h-screen transition-colors duration-300;
   }
 }
 
+:root,
+[data-theme="dark"] {
+  --bg-primary: #09090b;
+  --bg-secondary: rgba(24, 24, 27, 0.5);
+  --bg-card: rgba(24, 24, 27, 0.5);
+  --bg-hover: rgba(24, 24, 27, 0.6);
+  --bg-input: rgba(39, 39, 42, 0.6);
+  --border-primary: rgba(39, 39, 42, 0.6);
+  --border-secondary: rgba(47, 47, 51, 0.4);
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --text-faint: #52525b;
+  color-scheme: dark;
+}
+
+[data-theme="dark"] body {
+  background-color: #09090b;
+  color: #fafafa;
+  background-image:
+    radial-gradient(at 0% 0%, hsla(253, 16%, 7%, 1) 0, transparent 50%),
+    radial-gradient(at 50% 0%, hsla(225, 39%, 30%, 0.1) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(339, 49%, 30%, 0.1) 0, transparent 50%);
+}
+
+/* ─── LIGHT THEME ─── */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f4f5;
+  --bg-card: #ffffff;
+  --bg-hover: #f4f4f5;
+  --bg-input: #e4e4e7;
+  --border-primary: #e4e4e7;
+  --border-secondary: #d4d4d8;
+  --text-primary: #18181b;
+  --text-secondary: #52525b;
+  --text-muted: #71717a;
+  --text-faint: #a1a1aa;
+  color-scheme: light;
+}
+
+[data-theme="light"] body {
+  background-color: #fafafa;
+  color: #18181b;
+  background-image:
+    radial-gradient(at 0% 0%, hsla(253, 16%, 97%, 1) 0, transparent 50%),
+    radial-gradient(at 50% 0%, hsla(225, 39%, 92%, 0.3) 0, transparent 50%),
+    radial-gradient(at 100% 0%, hsla(260, 50%, 92%, 0.3) 0, transparent 50%);
+}
+
+/* ─── LIGHT THEME OVERRIDES ─── */
+/* Backgrounds */
+[data-theme="light"] .bg-zinc-950\/80 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+[data-theme="light"] .bg-zinc-950\/70 {
+  background-color: rgba(250, 250, 250, 0.9) !important;
+}
+
+[data-theme="light"] .bg-zinc-900\/60,
+[data-theme="light"] .bg-zinc-900\/50,
+[data-theme="light"] .bg-zinc-900\/30 {
+  background-color: #ffffff !important;
+}
+
+[data-theme="light"] .bg-zinc-800\/60,
+[data-theme="light"] .bg-zinc-800\/50,
+[data-theme="light"] .bg-zinc-800\/40 {
+  background-color: #f4f4f5 !important;
+}
+
+[data-theme="light"] .bg-zinc-700\/50 {
+  background-color: #e4e4e7 !important;
+}
+
+/* Borders */
+[data-theme="light"] .border-zinc-800\/60,
+[data-theme="light"] .border-zinc-800\/50,
+[data-theme="light"] .border-zinc-800\/40,
+[data-theme="light"] .border-zinc-800\/30 {
+  border-color: #e4e4e7 !important;
+}
+
+[data-theme="light"] .border-zinc-700\/40,
+[data-theme="light"] .border-zinc-700\/30 {
+  border-color: #d4d4d8 !important;
+}
+
+/* Text */
+[data-theme="light"] .text-white {
+  color: #18181b !important;
+}
+
+[data-theme="light"] .text-zinc-100 {
+  color: #27272a !important;
+}
+
+[data-theme="light"] .text-zinc-200 {
+  color: #3f3f46 !important;
+}
+
+[data-theme="light"] .text-zinc-300 {
+  color: #52525b !important;
+}
+
+[data-theme="light"] .text-zinc-400 {
+  color: #71717a !important;
+}
+
+[data-theme="light"] .text-zinc-500 {
+  color: #a1a1aa !important;
+}
+
+[data-theme="light"] .text-zinc-600 {
+  color: #a1a1aa !important;
+}
+
+/* Placeholder */
+[data-theme="light"] .placeholder-zinc-600::placeholder {
+  color: #a1a1aa !important;
+}
+
+/* Inputs */
+[data-theme="light"] input.bg-transparent,
+[data-theme="light"] textarea.bg-transparent {
+  color: #18181b !important;
+}
+
+[data-theme="light"] input.bg-transparent::placeholder,
+[data-theme="light"] textarea.bg-transparent::placeholder {
+  color: #a1a1aa !important;
+}
+
+/* Hover states */
+[data-theme="light"] .hover\:bg-zinc-800\/60:hover,
+[data-theme="light"] .hover\:bg-zinc-800\/50:hover {
+  background-color: #e4e4e7 !important;
+}
+
+[data-theme="light"] .hover\:border-zinc-700\/50:hover {
+  border-color: #d4d4d8 !important;
+}
+
+/* Cards on hover */
+[data-theme="light"] .hover\:bg-\[\#080808\]:hover {
+  background-color: #f9fafb !important;
+}
+
+/* Backdrop blur panels */
+[data-theme="light"] .backdrop-blur-sm {
+  backdrop-filter: blur(8px);
+}
+
+[data-theme="light"] .backdrop-blur-xl {
+  backdrop-filter: blur(16px);
+}
+
+/* Shadows - add subtle shadows in light mode */
+[data-theme="light"] article {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Keep gradient buttons as-is - they look good in both themes */
+
+/* Score backgrounds - lighten them */
+[data-theme="light"] .from-emerald-500\/20 {
+  --tw-gradient-from: rgba(16, 185, 129, 0.1) !important;
+}
+
+[data-theme="light"] .from-amber-500\/20 {
+  --tw-gradient-from: rgba(245, 158, 11, 0.1) !important;
+}
+
+[data-theme="light"] .from-rose-500\/20 {
+  --tw-gradient-from: rgba(244, 63, 94, 0.1) !important;
+}
+
 .glass-panel {
-  @apply bg-zinc-900/50 backdrop-blur-xl border border-zinc-800/50 shadow-2xl;
+  @apply backdrop-blur-xl border shadow-2xl;
+  background-color: var(--bg-card);
+  border-color: var(--border-primary);
 }
 
 .primary-gradient {
