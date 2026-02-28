@@ -1,0 +1,25 @@
+export const DeFakeSocialABI = [
+    "struct Post { uint256 id; address author; string contentURI; bytes32 contentHash; uint8 aiScore; bool isChallenged; uint8 finalStatus; uint256 timestamp; }",
+    "struct Challenge { uint256 postId; uint256 endTime; uint256 votesFake; uint256 votesAuthentic; bool resolved; }",
+    "event ChallengeInitiated(uint256 indexed postId, address challenger, uint256 endTime)",
+    "event ChallengeResolved(uint256 indexed postId, uint8 status, uint256 totalFake, uint256 totalAuthentic)",
+    "event PostCreated(uint256 indexed postId, address indexed author, string contentURI, uint8 aiScore)",
+    "event RewardClaimed(uint256 indexed postId, address voter, uint256 reward)",
+    "event Voted(uint256 indexed postId, address voter, bool votedFake, uint256 amount)",
+
+    "function challengeDuration() view returns (uint256)",
+    "function challengePost(uint256 _postId) payable",
+    "function challenges(uint256 _id) view returns (Challenge)",
+    "function claimReward(uint256 _postId)",
+    "function createPost(string _contentURI, bytes32 _contentHash, uint8 _aiScore) returns (uint256)",
+    "function getChallenge(uint256 _postId) view returns (Challenge)",
+    "function getPost(uint256 _postId) view returns (Post)",
+    "function hasClaimedReward(uint256 _postId, address _user) view returns (bool)",
+    "function minimumStake() view returns (uint256)",
+    "function postCounter() view returns (uint256)",
+    "function posts(uint256 _id) view returns (uint256 id, address author, string contentURI, bytes32 contentHash, uint8 aiScore, bool isChallenged, uint8 finalStatus, uint256 timestamp)",
+    "function resolveChallenge(uint256 _postId)",
+    "function userStakeAmount(uint256 _postId, address _user) view returns (uint256)",
+    "function userVoteDirection(uint256 _postId, address _user) view returns (bool)",
+    "function vote(uint256 _postId, bool _voteFake) payable"
+];
