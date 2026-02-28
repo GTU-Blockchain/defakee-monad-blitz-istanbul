@@ -23,6 +23,7 @@ export default function FeedPage() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [stakeAmount, setStakeAmount] = useState<Record<number, string>>({});
     const [searchQuery, setSearchQuery] = useState('');
+    const [refreshKey, setRefreshKey] = useState(0);
 
     const { address, isConnected } = useAccount();
     const { writeContract, data: txHash, isPending } = useWriteContract();
@@ -62,9 +63,9 @@ export default function FeedPage() {
             setPosts(loaded);
         };
         fetchPosts();
-    }, [postCounter, publicClient, address]);
+    }, [postCounter, publicClient, address, refreshKey]);
 
-    useEffect(() => { if (isSuccess) { refetchCounter(); setTextPost(''); setFile(null); setHash(''); setAnalysisResult(null); } }, [isSuccess, refetchCounter]);
+    useEffect(() => { if (isSuccess) { refetchCounter(); setRefreshKey(k => k + 1); setTextPost(''); setFile(null); setHash(''); setAnalysisResult(null); } }, [isSuccess, refetchCounter]);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files?.[0]) {
